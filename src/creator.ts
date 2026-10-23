@@ -51,7 +51,7 @@ export async function preparePreview(page: Page, post: PostBundle, expectedAccou
   const existingBody=page.locator(editorSelector).filter({visible:true});
   if (await page.locator(cardSelector).count() || (await existingTitle.count() && await existingTitle.inputValue()) || (await existingBody.count() && canonical(await readBody(existingBody)).trim())) throw new Error('Refusing to overwrite a nonempty editor or draft');
   if (!await existingTitle.count()) await (await unique(page.getByText('上传图文',{exact:true}),'image tab',timeout)).click();
-  if ((await existingTitle.count() && await existingTitle.inputValue()) || (await existingBody.count() && canonical(await readBody(existingBody)).trim())) throw new Error('Refusing to overwrite a nonempty editor or draft after tab switch');
+  if (await page.locator(cardSelector).count() || (await existingTitle.count() && await existingTitle.inputValue()) || (await existingBody.count() && canonical(await readBody(existingBody)).trim())) throw new Error('Refusing to overwrite a nonempty editor or draft after tab switch');
   let sources: string[]=[];
   for (let index=0;index<post.images.length;index++) {
     const input=page.locator('input[type="file"][multiple][accept*=".png"], input[type="file"][multiple][accept*="image"]');

@@ -110,3 +110,20 @@ test('recognises the platform upload host PUT without a content-type header',asy
  const result=await preparePreview(page,post,'Redlet demo',1800);
  assert.equal(result.status,'preview_ready');assert.equal(result.uploadTransportVerified,true);assert.equal(result.imageBytesVerified,true);
 });
+
+test('protects an image-only draft restored when switching to the image tab',async t=>{
+ const {page,post}=await fixture(t);
+ await page.evaluate(()=>{
+  document.querySelector<HTMLElement>('#fields')!.hidden=true;
+  document.querySelector<HTMLButtonElement>('#image-tab')!.onclick=()=>{
+   document.querySelector<HTMLElement>('#fields')!.hidden=false;
+   const card=document.createElement('div');card.className='pr';card.dataset.existing='true';
+   const img=document.createElement('img');img.className='img preview';img.src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a6foAAAAASUVORK5CYII=';
+   card.append(img);document.querySelector('.img-preview-area')!.append(card);
+  };
+ });
+ await assert.rejects(preparePreview(page,post,'Redlet demo',700),/nonempty|draft/i);
+ assert.deepEqual((await state(page)).uploads,[]);
+ assert.equal(await page.locator('.pr[data-existing="true"]').count(),1);
+ assert.equal(await page.locator('.pr').count(),1);
+});
