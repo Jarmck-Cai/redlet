@@ -8,7 +8,13 @@ import {preparePreview} from '../src/creator.js';
 import {submitPreview,verifyTarget} from '../src/publish.js';
 let browser:Browser;before(async()=>{browser=await chromium.launch({headless:true,...(process.platform==='win32'?{channel:'chrome'}:{})});});after(async()=>browser?.close());
 async function editor(t:any){const page=await browser.newPage();t.after(()=>page.close());const html=await readFile(new URL('./fixtures/creator.html',import.meta.url),'utf-8');await page.route('https://creator.rednote.com/**',r=>r.request().url().endsWith('/upload-image')?r.fulfill({body:'ok'}):r.fulfill({body:html,contentType:'text/html'}));await page.goto('https://creator.rednote.com/publish/publish');const post=await loadPost(fileURLToPath(new URL('../examples/demo/post.json',import.meta.url)));await preparePreview(page,post,'Redlet demo',1500);return {page,post};}
-async function manager(t:any,notes:any[]){const page=await browser.newPage();t.after(()=>page.close());const html=await readFile(new URL('./fixtures/manager.html',import.meta.url),'utf-8');await page.route('https://creator.rednote.com/**',r=>r.fulfill({body:html,contentType:'text/html'}));await page.goto('https://creator.rednote.com/new/note-manager');await page.evaluate(notes=>{(window as any).notes=notes;},notes);return page;}
+async function manager(t:any,notes:any[],options:{delays?:Record<string,number>;staleOnReview?:boolean;initialAll?:boolean;cachedSearch?:boolean;loseSearchOnce?:boolean}={}){const page=await browser.newPage();t.after(()=>page.close());let html=await readFile(new URL('./fixtures/manager.html',import.meta.url),'utf-8');
+ if(options.loseSearchOnce)html=html.replace("document.querySelector('input').oninput=()=>{","document.querySelector('input').oninput=()=>{if(!window.lostSearch){window.lostSearch=true;setTimeout(()=>{const q=document.querySelector('input');q.value='';q.setAttribute('value','');load();},100);}");
+ if(options.cachedSearch)html=html.replace("document.querySelector('.tab-item').classList.add('tab-item--active');load();","document.querySelector('.tab-item').classList.add('tab-item--active');render();");
+ if(options.initialAll)html=html.replace('window.notes=[];', 'window.notes=[];window.firstLoad=true;').replace("const num={'已发布':'1','审核中':'2','未通过':'3'}[tab];","const num=window.firstLoad?'0':{'已发布':'1','审核中':'2','未通过':'3'}[tab];window.firstLoad=false;");
+ if(options.staleOnReview)html=html.replace("tab.classList.add('tab-item--active');load();","tab.classList.add('tab-item--active');load();if(tab.textContent==='审核中')fetch('/api/galaxy/v2/creator/note/user/posted?tab=1&page=0&stale=1').then(r=>r.json()).then(n=>{window.renderedNotes=n;render();});");
+ await page.route('https://creator.rednote.com/**',async r=>{const u=new URL(r.request().url());if(u.pathname==='/api/galaxy/v2/creator/note/user/posted'){const tab=u.searchParams.get('tab')!;await new Promise(resolve=>setTimeout(resolve,u.searchParams.has('stale')?350:options.delays?.[tab]??20));const label=({'1':'已发布','2':'审核中','3':'未通过'} as any)[tab];await r.fulfill({body:JSON.stringify(u.searchParams.has('stale')?[{title:'本篇记录',tab:'审核中',id}]:(tab==='0'?notes:notes.filter(n=>n.tab===label))),contentType:'application/json'});}else await r.fulfill({body:html,contentType:'text/html'});});
+ await page.goto('https://creator.rednote.com/new/note-manager');return page;}
 const id='0123456789abcdef01234567';
 test('submission persists its marker before exactly one final click',async t=>{
  const {page,post}=await editor(t);await page.getByRole('button',{name:'发布',exact:true}).evaluate(el=>{el.setAttribute('onclick',`if(!window.recorded)throw Error('missing marker');window.submitted++;const ack=document.createElement('div');ack.textContent='发布成功';document.body.append(ack);`);});
@@ -31,12 +37,32 @@ for(const [tab,status] of [['已发布','published'],['审核中','submitted_for
  const page=await manager(t,[{title:'本篇记录',tab,id,url:'https://www.xiaohongshu.com/explore/'+id},{title:'another private note',tab,id:'aaaaaaaaaaaaaaaaaaaaaaaa'}]);
  const result=await verifyTarget(page,{site:'rednote',title:'本篇记录'},'Redlet demo',1200);
  assert.equal(result.status,status);assert.equal(result.noteId,id);assert.equal(result.publicUrl,'https://www.xiaohongshu.com/explore/'+id);assert.equal(result.submitted,true);
- assert.equal(await page.locator('input').inputValue(),'本篇记录');
+ assert.equal(await page.locator('input').inputValue(),tab==='已发布'?'本篇记录':'');
 });
 test('a similar title or missing target never becomes published and has no invented URL',async t=>{
  const page=await manager(t,[{title:'本篇记录的续篇',tab:'已发布',id}]);const result=await verifyTarget(page,{site:'rednote',title:'本篇记录'},'Redlet demo',900);assert.equal(result.status,'verification_pending');assert.equal(result.submitted,null);assert.equal(result.publicUrl,undefined);
 });
 test('duplicate exact titles or an unexpected note id stay unresolved',async t=>{
- const page=await manager(t,[{title:'本篇记录',tab:'已发布',id},{title:'本篇记录',tab:'已发布',id:'aaaaaaaaaaaaaaaaaaaaaaaa'}]);let result=await verifyTarget(page,{site:'rednote',title:'本篇记录'},'Redlet demo',900);assert.equal(result.status,'verification_pending');assert.match(result.reason??'',/ambiguous|duplicate/i);
- await page.evaluate(()=>{(window as any).notes.pop();});result=await verifyTarget(page,{site:'rednote',title:'本篇记录',noteId:'bbbbbbbbbbbbbbbbbbbbbbbb'},'Redlet demo',900);assert.equal(result.status,'verification_pending');assert.match(result.reason??'',/identity|id/i);
+ const notes=[{title:'本篇记录',tab:'已发布',id},{title:'本篇记录',tab:'已发布',id:'aaaaaaaaaaaaaaaaaaaaaaaa'}];const page=await manager(t,notes);let result=await verifyTarget(page,{site:'rednote',title:'本篇记录'},'Redlet demo',900);assert.equal(result.status,'verification_pending');assert.match(result.reason??'',/ambiguous|duplicate/i);
+ notes.pop();result=await verifyTarget(page,{site:'rednote',title:'本篇记录',noteId:'bbbbbbbbbbbbbbbbbbbbbbbb'},'Redlet demo',900);assert.equal(result.status,'verification_pending');assert.match(result.reason??'',/identity|id/i);
+});
+
+test('waits for delayed current-tab results before deciding a title is absent',async t=>{
+ const page=await manager(t,[{title:'本篇记录',tab:'已发布',id}],{delays:{'1':2300}});
+ const result=await verifyTarget(page,{site:'rednote',title:'本篇记录'},'Redlet demo',3000);assert.equal(result.status,'published');assert.equal(result.noteId,id);
+});
+test('out-of-order response from another tab cannot validate the active tab',async t=>{
+ const page=await manager(t,[],{staleOnReview:true});const result=await verifyTarget(page,{site:'rednote',title:'本篇记录'},'Redlet demo',1600);assert.equal(result.status,'verification_pending');assert.match(result.reason??'',/fresh|settle|result/i);
+});
+
+test('initial all-results response is not treated as the published filter',async t=>{
+ const page=await manager(t,[{title:'本篇记录',tab:'审核中',id}],{initialAll:true});const result=await verifyTarget(page,{site:'rednote',title:'本篇记录'},'Redlet demo',1400);assert.equal(result.status,'submitted_for_review');assert.equal(result.noteId,id);
+});
+
+test('cached published-title search verifies the rendered target without a new list request',async t=>{
+ const page=await manager(t,[{title:'本篇记录',tab:'已发布',id}],{initialAll:true,cachedSearch:true});const result=await verifyTarget(page,{site:'rednote',title:'本篇记录'},'Redlet demo',1000);assert.equal(result.status,'published');assert.equal(result.noteId,id);
+});
+
+test('reapplies a search that initial hydration clears before reading the target',async t=>{
+ const page=await manager(t,[{title:'本篇记录',tab:'已发布',id}],{loseSearchOnce:true});const result=await verifyTarget(page,{site:'rednote',title:'本篇记录'},'Redlet demo',1600);assert.equal(result.status,'published');assert.equal(await page.locator('input').inputValue(),'本篇记录');
 });

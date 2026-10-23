@@ -5,6 +5,8 @@ import { mkdtemp, rm, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import {loadPost} from '../src/post.js';
+import {beginTask,saveTask,lockTask} from '../src/journal.js';
 const root=fileURLToPath(new URL('../',import.meta.url));
 function cli(args: string[]) { return spawnSync(process.execPath,['--import','tsx','src/cli.ts',...args],{cwd:root,encoding:'utf-8',timeout:15000}); }
 test('check reports actual local bundle without launching a browser',()=>{
@@ -34,4 +36,10 @@ test('publish requires the exact content id confirmation before any browser or j
 test('verify requires an existing attempted task before opening the browser',async t=>{
  const dir=await mkdtemp(join(tmpdir(),'redlet-cli-'));t.after(()=>rm(dir,{recursive:true,force:true}));
  const result=cli(['verify','not-a-task','--site','rednote','--state-dir',dir]);assert.equal(result.status,2);assert.match(result.stderr,/ENOENT|task/i);assert.deepEqual(await readdir(dir),[]);
+});
+
+test('verify locks before reading a record that another writer is updating',async t=>{
+ const dir=await mkdtemp(join(tmpdir(),'redlet-cli-'));t.after(()=>rm(dir,{recursive:true,force:true}));const post=await loadPost(join(root,'examples/demo/post.json'));
+ const task=await beginTask(dir,post,'demo');task.attemptedAt='2026-10-23T18:00:00Z';(task as any).schemaVersion=2;await saveTask(dir,task);const release=await lockTask(dir,post.site,post.contentId);
+ try{const result=cli(['verify',post.contentId,'--site','rednote','--state-dir',dir]);assert.equal(result.status,2);assert.match(result.stderr,/locked|running/i);}finally{await release();}
 });

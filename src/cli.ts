@@ -37,11 +37,13 @@ async function main(): Promise<number> {
   if(command==='verify'){
     if(!manifest)throw new Error('A content id is required for task verification');
     const site=values.site??'rednote';if(site!=='rednote'&&site!=='xiaohongshu')throw new Error('Unknown site');
-    const task=await readTask(stateDir,site,manifest);
-    if(!task.attemptedAt)throw new Error('Task has not attempted submission');
-    if(values.account&&values.account.trim()!==task.account)throw new Error('Account differs from task');
-    const release=await lockTask(stateDir,site,manifest);
-    try{return await publicationCommand(stateDir,task,undefined);}finally{await release();}
+    const release=await lockTask(stateDir,site,manifest,true);
+    try{
+      const task=await readTask(stateDir,site,manifest);
+      if(!task.attemptedAt)throw new Error('Task has not attempted submission');
+      if(values.account&&values.account.trim()!==task.account)throw new Error('Account differs from task');
+      return await publicationCommand(stateDir,task,undefined);
+    }finally{await release();}
   }
   if (command==='login') {
     const site=values.site??'rednote';

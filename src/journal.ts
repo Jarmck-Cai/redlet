@@ -1,5 +1,5 @@
 import {createHash,randomUUID} from 'node:crypto';
-import {mkdir,open,readFile,rename,unlink} from 'node:fs/promises';
+import {access,mkdir,open,readFile,rename,unlink} from 'node:fs/promises';
 import {join} from 'node:path';
 import type {PostBundle} from './post.js';
 export type TaskStatus='preparing'|'preview_failed'|'submitting'|'verification_pending'|'submitted_for_review'|'published'|'rejected';
@@ -15,8 +15,8 @@ function location(stateDir:string,site:PostBundle['site'],id:string){
 }
 function fingerprint(post:PostBundle){return createHash('sha256').update(JSON.stringify({title:post.title,body:post.body,images:post.images.map(i=>i.sha256),ai:post.aiGenerated,visibility:post.visibility,site:post.site})).digest('hex');}
 async function durable(file:string,text:string,exclusive=false){const f=await open(file,exclusive?'wx':'w',0o600);try{await f.writeFile(text,'utf-8');await f.sync();}finally{await f.close();}}
-export async function lockTask(stateDir:string,site:PostBundle['site'],id:string):Promise<()=>Promise<void>>{
- const {folder,file}=location(stateDir,site,id);await mkdir(folder,{recursive:true});const lock=file+'.lock';
+export async function lockTask(stateDir:string,site:PostBundle['site'],id:string,existingOnly=false):Promise<()=>Promise<void>>{
+ const {folder,file}=location(stateDir,site,id);if(existingOnly)await access(file);await mkdir(folder,{recursive:true});const lock=file+'.lock';
  try{await durable(lock,JSON.stringify({pid:process.pid,createdAt:new Date().toISOString()}),true);}catch(e){if((e as NodeJS.ErrnoException).code==='EEXIST')throw new Error('Task is locked by another running command; inspect the local lock after a crash');throw e;}
  return async()=>{await unlink(lock);};
 }
