@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "content_id": "redlet-demo-001",
+  "title": "Redlet 的第一份预览",
+  "body_file": "body.txt",
+  "images": [
+    "images/01.png",
+    "images/02.png"
+  ],
+  "site": "rednote",
+  "ai_generated": true,
+  "visibility": "private"
+}
