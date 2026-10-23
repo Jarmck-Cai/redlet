@@ -1,0 +1,9 @@
+<!doctype html><meta charset="utf-8"><div class="user-info"><span class="name-box">Redlet demo</span></div>
+<div class="tab-list"><div class="tab-item tab-item--active">已发布</div><div class="tab-item">审核中</div><div class="tab-item">未通过</div></div>
+<div class="search-input"><input placeholder="搜索已发布的笔记" value=""></div><section class="content"></section>
+<script>
+window.notes=[];window.events=[];
+function render(){const input=document.querySelector('input');input.setAttribute('value',input.value);const tab=document.querySelector('.tab-item--active').textContent;window.events.push({query:input.value,tab});const area=document.querySelector('.content');area.replaceChildren();
+for(const note of window.notes.filter(n=>n.tab===tab&&n.title.includes(input.value))){const c=document.createElement('div');c.className='note-card';c.setAttribute('data-impression',JSON.stringify({noteTarget:{value:{noteId:note.id}}}));const title=document.createElement('span');title.className='note-card__title';title.textContent=note.title;c.append(title);if(note.url){const a=document.createElement('a');a.href=note.url;a.textContent='查看笔记';c.append(a);}area.append(c);}}
+document.querySelector('input').oninput=render;document.querySelector('input').onkeydown=e=>{if(e.key==='Enter')render();};for(const tab of document.querySelectorAll('.tab-item'))tab.onclick=()=>{document.querySelector('.tab-item--active').classList.remove('tab-item--active');tab.classList.add('tab-item--active');render();};render();
+</script>

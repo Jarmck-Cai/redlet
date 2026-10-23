@@ -107,3 +107,18 @@ export async function preparePreview(page: Page, post: PostBundle, expectedAccou
     images:post.images.map((image,index)=>({index:index+1,filename:image.filename,sha256:image.sha256})),
     titleVerified:true,bodyVerified:true,imageOrderVerified:true,imageBytesVerified:true,uploadTransportVerified:true,aiGenerated:post.aiGenerated,visibility:post.visibility,accountMatched:true,verifiedAt:new Date().toISOString()};
 }
+
+export async function assertPreviewUnchanged(page:Page,post:PostBundle,expectedAccount:string,timeout=30000):Promise<void>{
+ const origin=post.site==='rednote'?'creator.rednote.com':'creator.xiaohongshu.com';
+ if(new URL(page.url()).hostname!==origin||await readAccount(page,timeout)!==expectedAccount.trim())throw new Error('Creator account/origin changed before submission');
+ const title=await unique(page.locator(titleSelector),'title',timeout);const editor=await unique(page.locator(editorSelector),'body',timeout);
+ if(await title.inputValue()!==post.title)throw new Error('Title changed after preview');
+ if(canonical(await readBody(editor))!==canonical(post.body))throw new Error('Body changed after preview');
+ const hashes=await imageHashes(page,imageSelector,timeout);
+ if(hashes.length!==post.images.length||hashes.some((h,i)=>h!==post.images[i].sha256))throw new Error('Image identity/order changed after preview');
+ const declaration=await unique(page.locator('.d-select-content').filter({hasText:/^(添加内容类型声明|笔记含AI合成内容)$/}),'AI declaration',timeout);
+ if((await declaration.innerText()).trim()!==(post.aiGenerated?'笔记含AI合成内容':'添加内容类型声明'))throw new Error('AI declaration changed after preview');
+ const visibility=await unique(page.locator('.permission-card-wrapper .d-select-content'),'visibility',timeout);
+ if((await visibility.innerText()).trim()!==(post.visibility==='private'?'仅自己可见':'公开可见'))throw new Error('Visibility changed after preview');
+ if(/上传失败|上传出错|重新上传/.test((await page.locator(cardSelector).allTextContents()).join(' ')))throw new Error('Image upload failure shown before submission');
+}
