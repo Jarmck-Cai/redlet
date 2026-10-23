@@ -43,3 +43,8 @@ test('verify locks before reading a record that another writer is updating',asyn
  const task=await beginTask(dir,post,'demo');task.attemptedAt='2026-10-23T18:00:00Z';(task as any).schemaVersion=2;await saveTask(dir,task);const release=await lockTask(dir,post.site,post.contentId);
  try{const result=cli(['verify',post.contentId,'--site','rednote','--state-dir',dir]);assert.equal(result.status,2);assert.match(result.stderr,/locked|running/i);}finally{await release();}
 });
+
+test('an attempted content id cannot start another browser even with explicit publish confirmation',async t=>{
+ const dir=await mkdtemp(join(tmpdir(),'redlet-cli-'));t.after(()=>rm(dir,{recursive:true,force:true}));const post=await loadPost(join(root,'examples/demo/post.json'));const task=await beginTask(dir,post,'demo');task.status='submitting';task.attemptedAt='2026-10-23T18:00:00Z';task.submitted=null;await saveTask(dir,task);
+ const result=cli(['publish','examples/demo/post.json','--confirm',post.contentId,'--account','demo','--state-dir',dir]);assert.equal(result.status,2);assert.match(result.stderr,/verify|already attempted/i);assert.ok(!(await readdir(dir)).includes('profiles'));
+});

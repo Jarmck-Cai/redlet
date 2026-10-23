@@ -79,3 +79,7 @@
 [pipeline]: https://github.com/xpzouying/xiaohongshu-mcp/blob/7797fd375aba02dcd33afe143f6bee13e5870859/skills/post-to-xhs/scripts/publish_pipeline.py#L197-L234
 [launcher]: https://github.com/xpzouying/xiaohongshu-mcp/blob/7797fd375aba02dcd33afe143f6bee13e5870859/skills/post-to-xhs/scripts/chrome_launcher.py#L57-L126
 
+
+## 实际发布迭代的补充
+
+真实页面采用封闭 Shadow DOM 的 `xhs-publish-btn`，宿主通过 is-publish、submit-disabled 和 submit-loading 暴露状态。上游已有该组件适配（[固定版本实现](https://github.com/xpzouying/xiaohongshu-mcp/blob/7797fd375aba02dcd33afe143f6bee13e5870859/xiaohongshu/publish.go#L413-L553)）。Redlet 参考宿主识别方式，采用自己的 Chrome DOM 协议读取，仅定位组件内文字为发布的红色原生按钮，取得其实际边界后发送正常鼠标点击；不调用组件方法或平台发布接口，也不使用宿主固定百分比坐标。

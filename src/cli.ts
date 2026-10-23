@@ -107,9 +107,7 @@ async function publicationCommand(stateDir:string,task:TaskRecord,post?:Awaited<
  try{
   context=await openCreator(task.site,stateDir);const page=await context.newPage();await page.goto(creatorUrl(task.site),{waitUntil:'domcontentloaded'});
   if(post){
-   const existing=await verifyTarget(page,{site:task.site,title:task.title},task.account);
-   if(existing.submitted===true||existing.reason!=='Exact title not found in published, reviewing or rejected results')throw new Error('An existing/ambiguous title or unavailable target search prevents a new submission');
-   await page.goto(creatorUrl(task.site),{waitUntil:'domcontentloaded'});await preparePreview(page,post,task.account);
+   await preparePreview(page,post,task.account);
    const folder=join(stateDir,'receipts');await mkdir(folder,{recursive:true});const screenshot=join(folder,`${post.contentId}-${Date.now()}-preview.png`);
    await page.locator('.publish-page-content').screenshot({path:screenshot,mask:[page.getByText(task.account,{exact:true}),page.getByRole('img',{name:'头像',exact:true})],maskColor:'#e5e7eb'});
    task.screenshot=screenshot;await saveTask(stateDir,task);

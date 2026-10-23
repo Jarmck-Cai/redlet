@@ -12,3 +12,6 @@ User requested actual submission, result verification and one truthful developer
 
 ## Acceptance
 Real Chrome fixture tests for submission once, durable attempt ordering, false success, settings changes, pending/rejected/duplicate titles, target filtering, timeouts and duplicate-process behavior; existing full suite + typecheck/build. Then one approved-scope real development note through the compiled CLI, with actual submitted time and target status recorded. If login or platform verification blocks, keep the draft and report that specific condition.
+
+## Scope ruling after review
+Global title-absence preflight removed: current-page misses cannot prove historical absence, titles need not be unique, and account-history scanning is outside target-only verification. Durable content_id reservation/attempt state is the only retry authority. All target lookup misses remain unknown and never enable another submission.

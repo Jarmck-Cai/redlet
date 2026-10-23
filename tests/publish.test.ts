@@ -66,3 +66,18 @@ test('cached published-title search verifies the rendered target without a new l
 test('reapplies a search that initial hydration clears before reading the target',async t=>{
  const page=await manager(t,[{title:'本篇记录',tab:'已发布',id}],{loseSearchOnce:true});const result=await verifyTarget(page,{site:'rednote',title:'本篇记录'},'Redlet demo',1600);assert.equal(result.status,'published');assert.equal(await page.locator('input').inputValue(),'本篇记录');
 });
+
+async function closedPublisher(page:any,disabled=false){
+ await page.getByRole('button',{name:'发布',exact:true}).evaluate((el:any)=>el.remove());
+ await page.evaluate((disabled:boolean)=>{
+  (window as any).saved=0;
+  customElements.define('xhs-publish-btn',class extends HTMLElement{connectedCallback(){const root=this.attachShadow({mode:'closed'});root.innerHTML='<style>:host{display:block;width:600px;height:90px}button{width:120px;height:44px;margin:10px}</style><button type="button" class="ce-btn white">暂存离开</button><button type="button" class="ce-btn bg-red" aria-disabled="false" aria-busy="false">发布</button>';root.querySelector('.white')!.addEventListener('click',()=>{(window as any).saved++;});root.querySelector('.bg-red')!.addEventListener('click',()=>{(window as any).submitted++;const el=document.createElement('div');el.textContent='发布成功';document.body.append(el);});}});
+  const host=document.createElement('xhs-publish-btn');for(const [key,value] of Object.entries({'is-publish':'true','submit-text':'发布','submit-disabled':disabled?'true':'false','submit-loading':'false'}))host.setAttribute(key,value);document.querySelector('.publish-page-content')!.append(host);
+ },disabled);
+}
+test('closed publish component clicks its real publish button, preserving the neighbouring draft action',async t=>{
+ const {page,post}=await editor(t);await closedPublisher(page);let recorded=false;const result=await submitPreview(page,post,'Redlet demo',async()=>{recorded=true;},1000);assert.equal(recorded,true);assert.equal(result.submitted,true);assert.equal(await page.evaluate(()=>(window as any).submitted),1);assert.equal(await page.evaluate(()=>(window as any).saved),0);
+});
+test('disabled closed publish component stops before saving an attempt or clicking either action',async t=>{
+ const {page,post}=await editor(t);await closedPublisher(page,true);let recorded=false;await assert.rejects(submitPreview(page,post,'Redlet demo',async()=>{recorded=true;},500),/disabled|enabled/i);assert.equal(recorded,false);assert.equal(await page.evaluate(()=>(window as any).submitted),0);assert.equal(await page.evaluate(()=>(window as any).saved),0);
+});

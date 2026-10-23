@@ -1,6 +1,7 @@
 import type {Page,Request} from 'playwright';
 import type {PostBundle} from './post.js';
 import {assertPreviewUnchanged,readAccount} from './creator.js';
+import {finalPublishAction} from './publish-button.js';
 export interface PublicationResult {
  status:'verification_pending'|'submitted_for_review'|'published'|'rejected';submitted:true|null;
  noteId?:string;publicUrl?:string;reason?:string;verifiedAt?:string;acknowledgedAt?:string;
@@ -9,14 +10,13 @@ export interface Target {site:PostBundle['site'];title:string;noteId?:string}
 const pending=(reason:string):PublicationResult=>({status:'verification_pending',submitted:null,reason});
 export async function submitPreview(page:Page,post:PostBundle,expectedAccount:string,beforeClick:()=>Promise<void>,timeout=30000):Promise<PublicationResult>{
  await assertPreviewUnchanged(page,post,expectedAccount,timeout);
- const button=page.getByRole('button',{name:'发布',exact:true}).filter({visible:true});
- if(await button.count()!==1||!await button.isEnabled())throw new Error('Cannot identify one enabled final publish button');
+ const click=await finalPublishAction(page,timeout);
  const success=page.getByText(/^发布成功(?:[，,！!。].*)?$/).filter({visible:true});
  if(await success.count())throw new Error('A stale success message is already present');
  await beforeClick();
  await assertPreviewUnchanged(page,post,expectedAccount,timeout);
  try{
-  await button.click({timeout});
+  await click();
   await success.waitFor({state:'visible',timeout});
   return {status:'verification_pending',submitted:true,acknowledgedAt:new Date().toISOString(),reason:'Submission acknowledged; final target status still needs verification'};
  }catch{return pending('Publish attempt made; acknowledgement unavailable. Verify this task, do not resubmit.');}
@@ -95,6 +95,6 @@ export async function verifyTarget(page:Page,target:Target,expectedAccount:strin
    if(await readAccount(page,timeout)!==expectedAccount.trim())throw new Error('Creator account changed during verification');
    return {status,submitted:true,noteId,publicUrl,verifiedAt:new Date().toISOString()};
   }
-  return pending('Exact title not found in published, reviewing or rejected results');
+  return pending('Exact title not found in currently loaded results; keep verifying, do not republish');
  }finally{responses.stop();}
 }
