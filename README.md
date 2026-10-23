@@ -4,7 +4,7 @@
 
 提供素材检查、独立浏览器登录、预览、实际提交和单篇结果核对。
 
-![Redlet 在 Rednote 创作平台生成的示例预览](docs/assets/rednote-preview.png)
+![Redlet 填好的真实开发记录预览](docs/assets/publish-preview.png)
 
 ## 开始使用
 
