@@ -4,8 +4,8 @@ import { resolve, join } from 'node:path';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { loadPost } from './post.js';
 import { preparePreview, readAccount } from './creator.js';
-import {submitPreview,verifyTarget,type PublicationResult} from './publish.js';
-import {beginTask,readTask,saveTask,lockTask,type TaskRecord} from './journal.js';
+import {submitPreview,verifyTarget} from './publish.js';
+import {beginTask,readTask,saveTask,lockTask,applyResult,type TaskRecord} from './journal.js';
 import { openCreator, creatorUrl, bindAccount, boundAccount, type Site } from './browser.js';
 const usage=`Redlet — local Xiaohongshu publishing workflow
 
@@ -14,6 +14,7 @@ const usage=`Redlet — local Xiaohongshu publishing workflow
   redlet preview <post.json> [--account DISPLAY_NAME] [--close]
   redlet publish <post.json> --confirm CONTENT_ID [--account DISPLAY_NAME]
   redlet verify <content_id> [--site rednote|xiaohongshu]
+  redlet status <content_id> [--site rednote|xiaohongshu]
 
   --state-dir DIR    Local profiles and receipts (default: .runtime)
   --close            Close browser after saving the verified preview
@@ -21,6 +22,7 @@ const usage=`Redlet — local Xiaohongshu publishing workflow
 Login is manual in Redlet's own browser profile. Preview uploads the specified
 images and may create a platform draft. Only publish clicks the final button.
 An attempted content id is never automatically submitted again; use verify.
+Status reads saved local evidence only; it does not open the browser or refresh it.
 `;
 async function main(): Promise<number> {
   const {values,positionals}=parseArgs({args:process.argv.slice(2),allowPositionals:true,strict:true,options:{
@@ -28,12 +30,19 @@ async function main(): Promise<number> {
   }});
   if (values.help || !positionals.length) { console.log(usage);return 0; }
   const [command,manifest]=positionals;
-  if (!['check','login','preview','publish','verify'].includes(command)) throw new Error(`Unknown command: ${command}`);
+  if (!['check','login','preview','publish','verify','status'].includes(command)) throw new Error(`Unknown command: ${command}`);
   if (positionals.length>(command==='login'?1:2)) throw new Error('Unexpected positional arguments');
-  if (values.site && !['login','verify'].includes(command)) throw new Error('--site is only used with login/verify; preview/publish use the bundle site');
+  if (values.site && !['login','verify','status'].includes(command)) throw new Error('--site is only used with login/verify/status; preview/publish use the bundle site');
   if (values.close && command!=='preview') throw new Error('--close is only used with preview');
   if(values.confirm && command!=='publish')throw new Error('--confirm is only used with publish');
   const stateDir=resolve(values['state-dir']??'.runtime');
+  if(command==='status'){
+    if(!manifest)throw new Error('A content id is required for local task status');
+    const site=values.site??'rednote';if(site!=='rednote'&&site!=='xiaohongshu')throw new Error('Unknown site');
+    const task=await readTask(stateDir,site,manifest);
+    if(values.account&&values.account.trim()!==task.account)throw new Error('Account differs from task');
+    printTask(task,true);return 0;
+  }
   if(command==='verify'){
     if(!manifest)throw new Error('A content id is required for task verification');
     const site=values.site??'rednote';if(site!=='rednote'&&site!=='xiaohongshu')throw new Error('Unknown site');
@@ -95,12 +104,8 @@ async function main(): Promise<number> {
   } finally { process.removeListener('SIGINT',interrupt);await context.close(); }
 }
 
-function applyResult(task:TaskRecord,result:PublicationResult){
- task.status=result.status;task.submitted=result.submitted??task.submitted;
- if(result.acknowledgedAt&&!task.submittedAt)task.submittedAt=result.acknowledgedAt;
- if(result.noteId)task.noteId=result.noteId;if(result.publicUrl)task.publicUrl=result.publicUrl;
- if(result.verifiedAt)task.verifiedAt=result.verifiedAt;
- if(result.reason)task.reason=result.reason;else delete task.reason;
+function printTask(task:TaskRecord,local=false){
+ console.log(JSON.stringify({...(local?{source:'local'}:{}),status:task.status,submitted:task.submitted,contentId:task.contentId,noteId:task.noteId,publicUrl:task.publicUrl,attemptedAt:task.attemptedAt,submittedAt:task.submittedAt,verifiedAt:task.verifiedAt,lastCheckedAt:task.lastCheckedAt,lastConfirmed:task.lastConfirmed,reason:task.reason},null,2));
 }
 async function publicationCommand(stateDir:string,task:TaskRecord,post?:Awaited<ReturnType<typeof loadPost>>):Promise<number>{
  let context:Awaited<ReturnType<typeof openCreator>>|undefined;
@@ -120,11 +125,13 @@ async function publicationCommand(stateDir:string,task:TaskRecord,post?:Awaited<
    const card=page.locator('.note-card').filter({has:titles,visible:true});
    if(await card.count()===1){const screenshot=join(stateDir,'receipts',`${task.contentId}-${Date.now()}-result.png`);await mkdir(join(stateDir,'receipts'),{recursive:true});await card.screenshot({path:screenshot}).catch(()=>undefined);}
   }
-  console.log(JSON.stringify({status:task.status,submitted:task.submitted,contentId:task.contentId,noteId:task.noteId,publicUrl:task.publicUrl,attemptedAt:task.attemptedAt,submittedAt:task.submittedAt,verifiedAt:task.verifiedAt,reason:task.reason},null,2));
+  printTask(task);
   return task.status==='published'||task.status==='submitted_for_review'?0:3;
  }catch(error){
-  task.status=task.attemptedAt?'verification_pending':'preview_failed';if(!task.attemptedAt)task.submitted=false;
-  task.reason=error instanceof Error?error.message:String(error);await saveTask(stateDir,task);throw error;
+  const reason=error instanceof Error?error.message:String(error);
+  if(task.attemptedAt)applyResult(task,{status:'verification_pending',submitted:null,reason});
+  else {task.status='preview_failed';task.submitted=false;task.reason=reason;}
+  await saveTask(stateDir,task);printTask(task);throw error;
  }finally{await context?.close();}
 }
 
