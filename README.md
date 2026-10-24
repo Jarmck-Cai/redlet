@@ -37,6 +37,17 @@ node dist/cli.js verify my-note-001 --site rednote
 
 核对先使用创作平台的“搜索已发布的笔记”，再查相应状态。已发布结果结合搜索回读和卡片所属视图校验；审核／未通过页签会清空该搜索框，因此只用精确标题定位当前加载的目标卡片，不导出或读取其他卡片正文。程序等待页面正常列表请求完成及加载结束，不主动请求列表接口，也不读取列表响应正文。重名、状态请求乱序、当前页面找不到目标或无法建立新结果时，保留待核对；查不到不代表历史中不存在，也不会触发重发。防重复依赖本地内容 ID 记录，不扫描账号历史来推断是否曾经发过。没有取得实际公开链接时不补造链接。
 
+## 公开样例：Hello Redlet
+
+[样例目录与说明](examples/hello-redlet/)包含四段正文、两张原创示例配图和配置文件，可以改成自己的内容。[下载整份 ZIP](docs/assets/hello-redlet.zip)，或直接使用仓库里的文件：
+
+```sh
+node dist/cli.js check examples/hello-redlet/post.json
+node dist/cli.js preview examples/hello-redlet/post.json
+```
+
+先按前面的步骤安装、构建并登录。样例默认仅自己可见，命令停在预览；配图源文件和 Apache-2.0 许可随包提供。2026-10-23 的真实运行结果见[核对记录](docs/VERIFICATION.md#hello-redlet-公开样例2026-10-23)。下载包仅含编辑示例、原创图片及其源文件，不含浏览器数据、账号资料或真实创作页面截图。
+
 ## 一份素材包
 
 ```json

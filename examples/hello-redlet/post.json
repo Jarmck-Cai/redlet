@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "content_id": "redlet-hello-preview-001",
+  "title": "文案和图片，放在一起",
+  "body_file": "body.txt",
+  "images": [
+    "images/01.png",
+    "images/02.png"
+  ],
+  "site": "rednote",
+  "ai_generated": true,
+  "visibility": "private"
+}
