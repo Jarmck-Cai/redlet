@@ -47,6 +47,17 @@ test('waits for the current query instead of accepting a stale exact-name sugges
  });
  const result=await preparePreview(page,post,'Redlet demo',1800);assert.deepEqual(result.topics,[{name:'AI',id:'aaaaaaaaaaaaaaaaaaaaaaaa'}]);
 });
+test('a late response after readiness cannot replace the selected query identity',async t=>{
+ const {page,post}=await fixture(t,['AI']);const wait=page.waitForFunction.bind(page);let replaced=false;
+ (page as any).waitForFunction=async(...args:any[])=>{
+  const ready=await (wait as any)(...args);
+  const current=await page.locator('#creator-editor-topic-container').evaluateAll(nodes=>nodes.some(node=>node.parentElement?.getAttribute('text')==='#AI'));
+  if(current&&!replaced){replaced=true;await page.evaluate(()=>{(window as any).showTopicOptions('A',[{name:'AI',id:'cccccccccccccccccccccccc'}]);});}
+  return ready;
+ };
+ await assert.rejects(preparePreview(page,post,'Redlet demo',900),/AI|topic|tag/i);
+ assert.equal(replaced,true);assert.equal(await page.locator('a.tiptap-topic').count(),0);assert.equal(await page.evaluate(()=>(window as any).submitted),0);
+});
 test('plain hashtag text cannot stand in for an associated topic',async t=>{
  const {page,post}=await fixture(t,['AI']);await page.evaluate(()=>{(window as any).plainTopic=true;});
  await assert.rejects(preparePreview(page,post,'Redlet demo',650),/AI|topic|tag/i);assert.equal(await page.evaluate(()=>(window as any).submitted),0);

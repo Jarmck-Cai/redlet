@@ -81,7 +81,9 @@ creator.xiaohongshu.com：已配置入口，尚未做实际账号验收。不能
 - 输入与指纹回归：归一、去重、非法输入、合计长度、原有任务hash保持、改标签不能复用ID。新增正向行为先失败再实现；旧指纹采用修改前取得的固定摘要验证。
 - 真实Chrome受控回归：精确候选而非首项、缺失/相似/重名候选、旧查询候选、有效原生ID、普通文本拒绝、段落及末尾空行保持。最终检查覆盖删除话题、退化成文本、换ID、换顺序、缺预览身份及持久标记后的ID变化。
 - 在正文已适配话题但尚未绑定预览ID的中间版本，三项身份回归明确以Missing expected rejection失败；绑定实际预览ID并在两次最终回读中比较后通过。
-- 最终完整测试108/108通过，0失败、0跳过；类型检查与构建通过。无话题demo及新post-with-topics.json的构建后check通过，带话题样例135字符原正文、146字符工具合计、两图、private。
+- 最终完整测试109/109通过，0失败、0跳过；类型检查与构建通过。无话题demo及新post-with-topics.json的构建后check通过，带话题样例135字符原正文、146字符工具合计、两图、private。
+
+独立审查另复现“等待完成后旧查询结果晚到”：原查询检查与后续选择分开时可能接受旧列表的ID。新增回归先以Missing expected rejection失败，再把候选检查和点击的定位器都绑定当前查询标记；回归和完整测试随后通过。修正后的编译版本再次进行同一真实private预览，仍返回preview_ready、submitted:false、tagsVerified:true，两个关联ID和顺序保持。
 
 实际平台另行验证：原Redlet专用会话首次要求登录，CLI停在上传前；用户手动登录后，用编译后的CLI、原state-dir和普通公开样例再次运行preview --close。结果为preview_ready、submitted:false、tagsVerified:true。AI关联ID为5d6b7cdb000000000103e136，独立开发为5ca2b7b0000000000d02fd0f，顺序与稿包一致；原正文、两图、账号、AI声明和private可见范围均回读通过，编辑区截图已查看。此次没有publish或最终点击，真实回执与截图保留在原本地运行目录，不进入公开附件。
 

@@ -42,7 +42,9 @@ export async function appendTopics(editor:Locator,names:readonly string[],timeou
     const container=document.querySelector('#creator-editor-topic-container');
     return container?.parentElement?.getAttribute('text')===query&&Array.from(container.querySelectorAll('.item')).some(item=>item.getBoundingClientRect().height>0);
    },'#'+name,{timeout});
-   const container=page.locator('#creator-editor-topic-container').filter({visible:true});
+   // Keep the current query in the locator through inspection and the click;
+   // a late response for another query must not become the selected candidate.
+   const container=page.locator(`[text=${JSON.stringify('#'+name)}] > #creator-editor-topic-container`).filter({visible:true});
    if(await container.count()!==1)throw new Error('Cannot identify the current topic suggestion list');
    const matches=container.locator('.item').filter({has:page.locator('.name').filter({hasText:new RegExp('^'+escapeRegex('#'+name)+'$')})}).filter({visible:true});
    const count=await matches.count();
