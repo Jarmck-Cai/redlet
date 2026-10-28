@@ -81,3 +81,21 @@ test('closed publish component clicks its real publish button, preserving the ne
 test('disabled closed publish component stops before saving an attempt or clicking either action',async t=>{
  const {page,post}=await editor(t);await closedPublisher(page,true);let recorded=false;await assert.rejects(submitPreview(page,post,'Redlet demo',async()=>{recorded=true;},500),/disabled|enabled/i);assert.equal(recorded,false);assert.equal(await page.evaluate(()=>(window as any).submitted),0);assert.equal(await page.evaluate(()=>(window as any).saved),0);
 });
+
+for(const [firstTab,secondTab] of [['已发布','审核中'],['审核中','未通过']] as const)test(`same title in ${firstTab} and ${secondTab} cannot bind a task to either note`,async t=>{
+ const page=await manager(t,[{title:'本篇记录',tab:firstTab,id:'aaaaaaaaaaaaaaaaaaaaaaaa'},{title:'本篇记录',tab:secondTab,id:'bbbbbbbbbbbbbbbbbbbbbbbb'}]);
+ const result=await verifyTarget(page,{site:'rednote',title:'本篇记录'},'Redlet demo',1600);
+ assert.equal(result.status,'verification_pending');assert.equal(result.submitted,null);assert.equal(result.noteId,undefined);assert.equal(result.publicUrl,undefined);assert.match(result.reason??'',/ambiguous|duplicate/i);
+});
+
+test('title-only match must still have the same note id when its status view is revisited',async t=>{
+ const notes=[{title:'本篇记录',tab:'已发布',id:'aaaaaaaaaaaaaaaaaaaaaaaa'}];const page=await manager(t,notes);
+ page.on('request',request=>{const url=new URL(request.url());if(url.pathname==='/api/galaxy/v2/creator/note/user/posted'&&url.searchParams.get('tab')==='2')notes[0].id='bbbbbbbbbbbbbbbbbbbbbbbb';});
+ const result=await verifyTarget(page,{site:'rednote',title:'本篇记录'},'Redlet demo',1600);
+ assert.equal(result.status,'verification_pending');assert.equal(result.noteId,undefined);assert.equal(result.publicUrl,undefined);
+});
+
+test('title-only card without a usable note id cannot bind a task identity',async t=>{
+ const page=await manager(t,[{title:'本篇记录',tab:'已发布'}]);const result=await verifyTarget(page,{site:'rednote',title:'本篇记录'},'Redlet demo',1600);
+ assert.equal(result.status,'verification_pending');assert.equal(result.noteId,undefined);assert.match(result.reason??'',/identity|id/i);
+});

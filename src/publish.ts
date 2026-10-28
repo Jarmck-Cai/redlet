@@ -67,6 +67,7 @@ export async function verifyTarget(page:Page,target:Target,expectedAccount:strin
    lastVersion=version;await page.waitForTimeout(40);
   }
   if(!searchReady)return pending('Title search did not settle after initial hydration');
+  let titleMatch:PublicationResult|undefined;
   for(const [label,status,value] of tabs){
    const tab=page.locator('.tab-list .tab-item').filter({hasText:new RegExp('^'+label+'$')});
    if(await tab.count()!==1)return pending('Cannot identify the target status tab');
@@ -93,7 +94,17 @@ export async function verifyTarget(page:Page,target:Target,expectedAccount:strin
    if(target.noteId&&noteId!==target.noteId)return pending('Target note identity/id does not match the journal');
    const publicUrl=details.links.find(link=>{try{const u=new URL(link);return u.protocol==='https:'&&!u.search&&!u.hash&&!u.username&&!u.password&&['www.xiaohongshu.com','www.rednote.com','xiaohongshu.com','rednote.com'].includes(u.hostname)&&new RegExp('^/(explore|discovery/item)/'+(noteId??'[a-f0-9]{24}')+'$').test(u.pathname);}catch{return false;}});
    if(await readAccount(page,timeout)!==expectedAccount.trim())throw new Error('Creator account changed during verification');
-   return {status,submitted:true,noteId,publicUrl,verifiedAt:new Date().toISOString()};
+   const result:PublicationResult={status,submitted:true,noteId,publicUrl,verifiedAt:new Date().toISOString()};
+   if(target.noteId)return result;
+   if(!noteId)return pending('Exact title has no usable note id; cannot bind task identity');
+   if(titleMatch)return pending('Ambiguous duplicate exact titles across status views; no automatic match');
+   titleMatch=result;
+  }
+  if(titleMatch?.noteId){
+   // A title-only match must be unique across these loaded status views. Revisit
+   // it with the observed id so the returned evidence and page still agree.
+   responses.stop();
+   return verifyTarget(page,{...target,noteId:titleMatch.noteId},expectedAccount,timeout);
   }
   return pending('Exact title not found in currently loaded results; keep verifying, do not republish');
  }finally{responses.stop();}
