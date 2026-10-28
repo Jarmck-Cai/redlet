@@ -1,0 +1,39 @@
+<!doctype html><meta charset="utf-8">
+<div class="header-area"><div class="user-info"><span class="name-box">Redlet demo</span></div></div>
+<div class="publish-page-content">
+<button id="image-tab">上传图文</button><button hidden>上传图文</button>
+<input class="upload-input" type="file" accept=".jpg,.jpeg,.png,.webp" multiple>
+<div class="img-preview-area"></div>
+<section id="fields"><div class="d-input"><input class="d-text" placeholder="填写标题会有更多赞哦"></div>
+<div class="tiptap ProseMirror" contenteditable="true" role="textbox"><p><br></p></div>
+</section><div id="declaration"><div class="d-select-content"><span>添加内容类型声明</span></div></div>
+<div id="ai-options" hidden><div class="d-option-name">笔记含AI合成内容</div></div>
+<div class="permission-card-wrapper"><div class="d-select-content"><span>公开可见</span></div></div>
+<div id="visibility-options" hidden><div class="custom-option"><div class="name">公开可见</div></div><div class="custom-option"><div class="name">仅自己可见</div></div></div>
+</div>
+<button onclick="window.submitted++">发布</button>
+<script>
+document.querySelector('#image-tab').onclick=()=>{document.querySelector('#fields').hidden=false;};
+window.submitted=0; window.uploadNames=[];
+document.querySelector('input[type=file]').onchange=async e=>{
+ if(window.skipNextUpload)return;
+ for(const file of e.target.files){
+   window.uploadNames.push(file.name);
+   await fetch(window.untypedPut?'https://upload-ae-ali.rnote.com/image':'/upload-image',window.untypedPut?{method:'PUT',body:await file.arrayBuffer()}:{method:'POST',headers:{'content-type':file.type||'image/png'},body:file});
+   const card=document.createElement('div');card.className='pr';
+   const img=document.createElement('img');img.className='img preview';img.src=window.repeatFirst&&document.querySelector('.pr img')?document.querySelector('.pr img').src:URL.createObjectURL(file);card.append(img);
+   const area=document.querySelector('.img-preview-area');
+   if(window.reverseNext)area.prepend(card);else area.append(card);
+ }
+};
+document.querySelector('#declaration .d-select-content').onclick=()=>{document.querySelector('#ai-options').hidden=false;};
+document.querySelector('.d-option-name').onclick=()=>{
+ if(!window.ignoreAI)document.querySelector('#declaration .d-select-content span').textContent='笔记含AI合成内容';
+ document.querySelector('#ai-options').hidden=true;
+};
+document.querySelector('.permission-card-wrapper').onclick=()=>{document.querySelector('#visibility-options').hidden=false;};
+for(const option of document.querySelectorAll('.custom-option'))option.onclick=()=>{
+ document.querySelector('.permission-card-wrapper .d-select-content span').textContent=option.textContent;
+ document.querySelector('#visibility-options').hidden=true;
+};
+</script>

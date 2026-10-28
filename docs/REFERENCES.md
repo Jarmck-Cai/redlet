@@ -1,6 +1,6 @@
 # 现有工具与一手资料
 
-2026-10-23核对。以下是参考与候选，不是已经安装、接入或验证通过的依赖。
+2026-10-23核对。上游项目为源码参考；运行依赖采用 Playwright，详见 REUSE_RESEARCH.md 和 VERIFICATION.md。
 
 - [xiaohongshu-mcp](https://github.com/xpzouying/xiaohongshu-mcp)：Apache-2.0 开源实现，支持图文与本地图片发布。
 - [其许可证](https://github.com/xpzouying/xiaohongshu-mcp/blob/main/LICENSE)：适用条件以原文为准。免费源码使用与托管服务收费分开考虑。
