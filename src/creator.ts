@@ -1,11 +1,13 @@
 import type { Page, Locator } from 'playwright';
 import type { PostBundle } from './post.js';
 import { captureImageUpload, imageHashes } from './uploads.js';
+import {appendTopics,verifyBodyTopics,type VerifiedTopic} from './topics.js';
 export interface PreviewResult {
   status: 'preview_ready'; submitted: false; contentId: string; imageCount: number;
   images: { index: number; filename: string; sha256: string }[];
   titleVerified: true; bodyVerified: true; imageOrderVerified: true; imageBytesVerified: true; uploadTransportVerified: true;
   aiGenerated: boolean; visibility: 'public' | 'private'; accountMatched: true; verifiedAt: string;
+  topics: VerifiedTopic[]; tagsVerified:true;
 }
 const titleSelector='div.d-input input, input[placeholder*="填写标题"]';
 const editorSelector='div.tiptap[contenteditable="true"], div.ProseMirror[contenteditable="true"]';
@@ -79,6 +81,7 @@ export async function preparePreview(page: Page, post: PostBundle, expectedAccou
     if (i) await editor.press('Enter');
     if (lines[i]) await page.keyboard.insertText(lines[i]);
   }
+  const topics=await appendTopics(editor,post.tags,timeout);
   const declaration=await unique(page.locator('.d-select-content').filter({hasText:/^(添加内容类型声明|笔记含AI合成内容)$/}),'AI declaration');
   const aiLabel='笔记含AI合成内容';
   if (post.aiGenerated && (await declaration.innerText()).trim()!==aiLabel) {
@@ -92,7 +95,7 @@ export async function preparePreview(page: Page, post: PostBundle, expectedAccou
     await (await unique(page.locator('.custom-option .name').filter({hasText:new RegExp(`^${visibilityLabel}$`)}),'visibility option')).click();
   }
   if (await title.inputValue()!==post.title) throw new Error('Title readback differs from bundle');
-  if (canonical(await readBody(editor))!==canonical(post.body)) throw new Error('Body readback differs from bundle (including paragraph breaks)');
+  await verifyBodyTopics(editor,post.body,post.tags,topics);
   const finalSources=await imageSources(page);
   if (finalSources.length!==post.images.length || finalSources.some((src,i)=>src!==sources[i])) throw new Error('Image order/count readback differs from bundle');
   const finalHashes=await imageHashes(page,imageSelector,timeout);
@@ -105,15 +108,16 @@ export async function preparePreview(page: Page, post: PostBundle, expectedAccou
   if (await readAccount(page,timeout)!==expectedAccount.trim()) throw new Error('Creator account changed during preview');
   return {status:'preview_ready',submitted:false,contentId:post.contentId,imageCount:post.images.length,
     images:post.images.map((image,index)=>({index:index+1,filename:image.filename,sha256:image.sha256})),
-    titleVerified:true,bodyVerified:true,imageOrderVerified:true,imageBytesVerified:true,uploadTransportVerified:true,aiGenerated:post.aiGenerated,visibility:post.visibility,accountMatched:true,verifiedAt:new Date().toISOString()};
+    titleVerified:true,bodyVerified:true,imageOrderVerified:true,imageBytesVerified:true,uploadTransportVerified:true,aiGenerated:post.aiGenerated,visibility:post.visibility,accountMatched:true,verifiedAt:new Date().toISOString(),topics,tagsVerified:true};
 }
 
-export async function assertPreviewUnchanged(page:Page,post:PostBundle,expectedAccount:string,timeout=30000):Promise<void>{
+export async function assertPreviewUnchanged(page:Page,post:PostBundle,expectedAccount:string,timeout=30000,expectedTopics?:readonly VerifiedTopic[]):Promise<void>{
  const origin=post.site==='rednote'?'creator.rednote.com':'creator.xiaohongshu.com';
  if(new URL(page.url()).hostname!==origin||await readAccount(page,timeout)!==expectedAccount.trim())throw new Error('Creator account/origin changed before submission');
  const title=await unique(page.locator(titleSelector),'title',timeout);const editor=await unique(page.locator(editorSelector),'body',timeout);
  if(await title.inputValue()!==post.title)throw new Error('Title changed after preview');
- if(canonical(await readBody(editor))!==canonical(post.body))throw new Error('Body changed after preview');
+ if(post.tags.length&&!expectedTopics)throw new Error('Topic submission requires identities from the checked preview');
+ await verifyBodyTopics(editor,post.body,post.tags,expectedTopics);
  const hashes=await imageHashes(page,imageSelector,timeout);
  if(hashes.length!==post.images.length||hashes.some((h,i)=>h!==post.images[i].sha256))throw new Error('Image identity/order changed after preview');
  const declaration=await unique(page.locator('.d-select-content').filter({hasText:/^(添加内容类型声明|笔记含AI合成内容)$/}),'AI declaration',timeout);

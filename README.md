@@ -62,6 +62,7 @@ node dist/cli.js preview examples/hello-redlet/post.json
   "title": "今天改了一个小地方",
   "body_file": "body.txt",
   "images": ["images/01.png", "images/02.png"],
+  "tags": ["AI", "独立开发"],
   "site": "rednote",
   "ai_generated": true,
   "visibility": "private"
@@ -71,6 +72,23 @@ node dist/cli.js preview examples/hello-redlet/post.json
 正文是 UTF-8 纯文本，也可以用 `body` 直接写进 JSON，二者选一。文件路径相对素材包，不允许走出该目录。标题上限 20 个 Unicode 字符，正文上限 1000 个；支持 1–18 张 PNG、JPEG、WebP，单张最大 32 MiB。
 
 `site` 可选 `rednote`、`xiaohongshu`。`visibility` 可选 `private`（仅自己可见）、`public`（公开可见）。`ai_generated` 对应“笔记含AI合成内容”。两个入口的实际验收状态见 [验证记录](docs/VERIFICATION.md)。
+
+## 话题标签
+
+`tags` 是可选话题名称数组，省略或写空数组沿用原流程。可以带一个前导`#`，工具会去掉首尾空白、按完整名称去重并保留顺序。本版支持最多10个不同话题；名称不能含额外`#`、换行或控制字符。正文加生成的话题文本一起检查现有1000字符工具上限。
+
+Redlet在正文末尾另起一段，逐个输入`#话题`并选择名称完全匹配的候选。平台若显示精确的“新建话题”选项，也需等它生成带真实ID的关联节点后才算成功。相似候选、多个同名候选、查不到或只有普通`#文字`时会停止，并指出哪个话题无法核对。
+
+预览回执记录选中的名称、顺序与平台话题ID；提交前两次回读还会核对这些ID。更改话题会改变素材指纹，已尝试提交的内容ID仍不能再次发布。正文中的普通`#`原样保留；希望关联的平台话题请放入`tags`，避免在正文里重复填写。
+
+可以直接给定话题，也可以让正在协作的AI助手根据**本篇正文**提出候选与简短理由，你选定后再写入`tags`，一起审阅和发布。推荐本身不自动填入稿包，也不触发发布；此流程无需给Redlet配置模型或密钥。
+
+带话题的公开样例仍默认仅自己可见，先检查再预览：
+
+```sh
+node dist/cli.js check examples/hello-redlet/post-with-topics.json
+node dist/cli.js preview examples/hello-redlet/post-with-topics.json
+```
 
 ## 预览怎么核对
 

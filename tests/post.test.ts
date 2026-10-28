@@ -48,3 +48,20 @@ test('rejects an image extension whose bytes are not an image',async t=>{
   const f=await fixture(t);await writeFile(join(f.dir,'images','one.png'),'not an image');
   await assert.rejects(loadPost(f.path),/format/);
 });
+
+test('normalizes explicit tags, removes duplicates and preserves user order',async t=>{
+ const f=await fixture(t,{tags:[' #AI ','独立开发','AI',' #效率工具']});
+ assert.deepEqual((await loadPost(f.path)).tags,['AI','独立开发','效率工具']);
+});
+test('omitted or empty tags preserve the original body',async t=>{
+ const f=await fixture(t);const old=await loadPost(f.path);assert.deepEqual(old.tags,[]);
+ const g=await fixture(t,{tags:[]});const empty=await loadPost(g.path);assert.deepEqual(empty.tags,[]);assert.equal(empty.body,old.body);
+});
+for(const tags of [null,'AI',[1],[' '],['##AI'],['AI#开发'],['AI\n开发'],['AI\t开发'],Array.from({length:11},(_,i)=>'话题'+i)])test(`rejects invalid tags ${JSON.stringify(tags)}`,async t=>{
+ const f=await fixture(t,{tags});await assert.rejects(loadPost(f.path),/tags|tag/i);
+});
+test('counts the generated topic suffix inside the existing body limit',async t=>{
+ const f=await fixture(t,{body_file:undefined,body:'字'.repeat(995),tags:['AI']});
+ const p=await loadPost(f.path);assert.deepEqual(p.tags,['AI']);
+ const g=await fixture(t,{body_file:undefined,body:'字'.repeat(996),tags:['AI']});await assert.rejects(loadPost(g.path),/1000|length|characters/i);
+});

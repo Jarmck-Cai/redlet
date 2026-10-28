@@ -32,3 +32,14 @@ node dist/cli.js preview examples/hello-redlet/post.json
 如果写的是另一篇将要发布的原创内容，为它分配自己的内容 ID；已尝试提交的那篇继续使用 verify，不换 ID 重发。实际发布说明见仓库 README。
 
 配图来自 `cards.html`，可在仓库根目录运行 `node examples/hello-redlet/render.mjs` 重绘。重绘使用项目已有的 Playwright；Windows 使用 Chrome，其他系统先安装 Playwright Chromium。样例文件沿用仓库 Apache-2.0 许可证。
+
+## 话题示例
+
+`post-with-topics.json`使用同一份普通正文和图片，另给定AI、独立开发两个话题。按仓库README安装、构建、登录后，可运行：
+
+```sh
+node dist/cli.js check examples/hello-redlet/post-with-topics.json
+node dist/cli.js preview examples/hello-redlet/post-with-topics.json
+```
+
+仍为仅自己可见的预览，不点击发布。原`post.json`及ZIP示例保持无话题，兼容旧用法。换成自己的内容时，由你给定话题或先请助手推荐并选定，再写入`tags`。

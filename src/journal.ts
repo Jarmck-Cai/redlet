@@ -3,6 +3,7 @@ import {access,mkdir,open,readFile,rename,unlink} from 'node:fs/promises';
 import {join} from 'node:path';
 import type {PostBundle} from './post.js';
 import type {PublicationResult} from './publish.js';
+import type {VerifiedTopic} from './topics.js';
 export type TaskStatus='preparing'|'preview_failed'|'submitting'|'verification_pending'|'submitted_for_review'|'published'|'rejected';
 export type ConfirmedStatus='submitted_for_review'|'published'|'rejected';
 export interface TaskRecord {
@@ -10,6 +11,7 @@ export interface TaskRecord {
  status:TaskStatus;submitted:boolean|null;createdAt:string;updatedAt:string;attemptedAt?:string;submittedAt?:string;verifiedAt?:string;
  noteId?:string;publicUrl?:string;reason?:string;screenshot?:string;lastCheckedAt?:string;
  lastConfirmed?:{status:ConfirmedStatus;verifiedAt:string};
+ topics?:VerifiedTopic[];
 }
 const statuses:TaskStatus[]=['preparing','preview_failed','submitting','verification_pending','submitted_for_review','published','rejected'];
 const confirmed=(status:string):status is ConfirmedStatus=>['submitted_for_review','published','rejected'].includes(status);
@@ -18,7 +20,7 @@ function location(stateDir:string,site:PostBundle['site'],id:string){
  if(!['rednote','xiaohongshu'].includes(site)||!id.trim())throw new Error('Invalid task identity');
  const folder=join(stateDir,'tasks',site);return {folder,file:join(folder,createHash('sha256').update(id).digest('hex')+'.json')};
 }
-function fingerprint(post:PostBundle){return createHash('sha256').update(JSON.stringify({title:post.title,body:post.body,images:post.images.map(i=>i.sha256),ai:post.aiGenerated,visibility:post.visibility,site:post.site})).digest('hex');}
+function fingerprint(post:PostBundle){return createHash('sha256').update(JSON.stringify({title:post.title,body:post.body,images:post.images.map(i=>i.sha256),ai:post.aiGenerated,visibility:post.visibility,site:post.site,...(post.tags.length?{tags:post.tags}:{})})).digest('hex');}
 async function durable(file:string,text:string,exclusive=false){const f=await open(file,exclusive?'wx':'w',0o600);try{await f.writeFile(text,'utf-8');await f.sync();}finally{await f.close();}}
 export async function lockTask(stateDir:string,site:PostBundle['site'],id:string,existingOnly=false):Promise<()=>Promise<void>>{
  const {folder,file}=location(stateDir,site,id);if(existingOnly)await access(file);await mkdir(folder,{recursive:true});const lock=file+'.lock';
@@ -30,6 +32,7 @@ export async function readTask(stateDir:string,site:PostBundle['site'],id:string
  if(task.schemaVersion!==1||task.site!==site||task.contentId!==id||!statuses.includes(task.status)||typeof task.title!=='string'||typeof task.account!=='string'||!/^[a-f0-9]{64}$/.test(task.fingerprint)||![true,false,null].includes(task.submitted))throw new Error('Invalid task journal; refusing to publish');
  if(task.lastCheckedAt!==undefined&&!timestamp(task.lastCheckedAt))throw new Error('Invalid task journal check timestamp');
  if(task.lastConfirmed!==undefined&&(!task.lastConfirmed||!confirmed(task.lastConfirmed.status)||!timestamp(task.lastConfirmed.verifiedAt)))throw new Error('Invalid task journal confirmation');
+ if(task.topics!==undefined&&(!Array.isArray(task.topics)||task.topics.length>10||task.topics.some((topic:any)=>!topic||typeof topic.name!=='string'||!topic.name.trim()||typeof topic.id!=='string'||!/^[a-f0-9]{24}$/i.test(topic.id))))throw new Error('Invalid task journal topic identities');
  return task;
 }
 export async function saveTask(stateDir:string,task:TaskRecord):Promise<void>{

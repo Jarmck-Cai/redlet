@@ -21,6 +21,17 @@ test('a changed bundle or account cannot reuse an existing content id',async t=>
  await assert.rejects(beginTask(dir,{...post,body:'changed'},'demo'),/changed|different/i);
  await assert.rejects(beginTask(dir,post,'other'),/account|different/i);
 });
+
+test('changing selected tags cannot reuse a reserved content id',async t=>{
+ const {dir,post}=await fixture(t);await beginTask(dir,{...post,tags:['AI']},'demo');
+ await assert.rejects(beginTask(dir,{...post,tags:['独立开发']},'demo'),/changed|different/i);
+ await assert.rejects(beginTask(dir,{...post,tags:[]},'demo'),/changed|different/i);
+});
+test('omitted and empty topic lists keep the existing task fingerprint',async t=>{
+ const {dir,post}=await fixture(t);const task=await beginTask(dir,post,'demo');
+ assert.equal(task.fingerprint,'495b00461ee67b40664b5c9440ad6eb5345f2ca95f7de0309d8a505b108245f6');
+ assert.equal((await beginTask(dir,{...post,tags:[]},'demo')).fingerprint,task.fingerprint);
+});
 test('known preview failure can retry without losing original creation time',async t=>{
  const {dir,post}=await fixture(t);const first=await beginTask(dir,post,'demo');first.status='preview_failed';await saveTask(dir,first);
  const second=await beginTask(dir,post,'demo');assert.equal(second.status,'preparing');assert.equal(second.createdAt,first.createdAt);assert.equal(second.submitted,false);
