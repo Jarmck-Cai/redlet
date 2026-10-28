@@ -37,3 +37,41 @@ for(const option of document.querySelectorAll('.custom-option'))option.onclick=(
  document.querySelector('#visibility-options').hidden=true;
 };
 </script>
+<style>.content-hide{display:none}</style>
+<script>
+window.topicOptions={};window.topicDelay=15;window.plainTopic=false;
+const topicEditor=document.querySelector('.tiptap');
+const topicIds={AI:'aaaaaaaaaaaaaaaaaaaaaaaa','独立开发':'bbbbbbbbbbbbbbbbbbbbbbbb','AI编程':'cccccccccccccccccccccccc','效率工具':'dddddddddddddddddddddddd'};
+function showTopicOptions(query,options){
+ document.querySelector('#topic-popup')?.remove();
+ const wrapper=document.createElement('div');wrapper.id='topic-popup';wrapper.setAttribute('text','#'+query);
+ const container=document.createElement('div');container.id='creator-editor-topic-container';container.className='items';wrapper.append(container);
+ for(const option of options){
+  const item=document.createElement('div');item.className='item';item.setAttribute('data-impression',JSON.stringify({tagTarget:{value:{tagId:option.id}}}));
+  const name=document.createElement('span');name.className='name';name.textContent='#'+option.name;item.append(name);
+  item.onmousedown=event=>event.preventDefault();
+  item.onclick=()=>{
+   const selection=getSelection(),cursor=selection.getRangeAt(0);const node=cursor.startContainer;
+   if(node.nodeType!==Node.TEXT_NODE)return;
+   const start=node.textContent.lastIndexOf('#');if(start<0)return;
+   const range=document.createRange();range.setStart(node,start);range.setEnd(node,cursor.startOffset);range.deleteContents();
+   const anchor=document.createElement(window.plainTopic?'span':'a');
+   if(!window.plainTopic){anchor.className='tiptap-topic';anchor.setAttribute('data-topic',JSON.stringify({id:option.id,name:option.name,link:''}));anchor.setAttribute('contenteditable','false');}
+   anchor.textContent='#'+option.name;
+   if(!window.plainTopic){const hidden=document.createElement('span');hidden.className='content-hide';hidden.textContent='[话题]#';anchor.append(hidden);}
+   range.insertNode(anchor);const spacer=document.createTextNode('\u00a0');anchor.after(spacer);range.setStart(spacer,1);range.collapse(true);selection.removeAllRanges();selection.addRange(range);
+   wrapper.remove();topicEditor.focus();
+  };
+  container.append(item);
+ }
+ document.body.append(wrapper);
+}
+topicEditor.addEventListener('input',()=>{
+ const selection=getSelection();const node=selection?.anchorNode;
+ const query=node?.nodeType===Node.TEXT_NODE?node.textContent.slice(0,selection.anchorOffset).match(/#([^#\n]*)$/)?.[1]:undefined;
+ if(query===undefined){document.querySelector('#topic-popup')?.remove();return;}
+ if(window.staleTopic)showTopicOptions(window.staleTopic.query,[window.staleTopic.option]);
+ const options=window.topicOptions[query]??(query?[{name:query,id:topicIds[query]??'eeeeeeeeeeeeeeeeeeeeeeee'}]:[]);
+ setTimeout(()=>showTopicOptions(query,options),window.topicDelay);
+});
+</script>

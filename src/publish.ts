@@ -2,19 +2,20 @@ import type {Page,Request} from 'playwright';
 import type {PostBundle} from './post.js';
 import {assertPreviewUnchanged,readAccount} from './creator.js';
 import {finalPublishAction} from './publish-button.js';
+import type {VerifiedTopic} from './topics.js';
 export interface PublicationResult {
  status:'verification_pending'|'submitted_for_review'|'published'|'rejected';submitted:true|null;
  noteId?:string;publicUrl?:string;reason?:string;verifiedAt?:string;acknowledgedAt?:string;
 }
 export interface Target {site:PostBundle['site'];title:string;noteId?:string}
 const pending=(reason:string):PublicationResult=>({status:'verification_pending',submitted:null,reason});
-export async function submitPreview(page:Page,post:PostBundle,expectedAccount:string,beforeClick:()=>Promise<void>,timeout=30000):Promise<PublicationResult>{
- await assertPreviewUnchanged(page,post,expectedAccount,timeout);
+export async function submitPreview(page:Page,post:PostBundle,expectedAccount:string,beforeClick:()=>Promise<void>,timeout=30000,expectedTopics?:readonly VerifiedTopic[]):Promise<PublicationResult>{
+ await assertPreviewUnchanged(page,post,expectedAccount,timeout,expectedTopics);
  const click=await finalPublishAction(page,timeout);
  const success=page.getByText(/^发布成功(?:[，,！!。].*)?$/).filter({visible:true});
  if(await success.count())throw new Error('A stale success message is already present');
  await beforeClick();
- await assertPreviewUnchanged(page,post,expectedAccount,timeout);
+ await assertPreviewUnchanged(page,post,expectedAccount,timeout,expectedTopics);
  try{
   await click();
   await success.waitFor({state:'visible',timeout});

@@ -91,7 +91,7 @@ async function main(): Promise<number> {
     await page.locator('.publish-page-content').screenshot({path:screenshot,mask:[page.getByText(expected,{exact:true}),page.getByRole('img',{name:'头像',exact:true})],maskColor:'#e5e7eb'});
     const receipt=join(folder,`${stem}.json`);
     await writeFile(receipt,JSON.stringify({...result,screenshot},null,2)+'\n','utf-8');
-    console.log(JSON.stringify({status:result.status,submitted:false,contentId:post.contentId,imageCount:post.images.length,receipt,screenshot},null,2));
+    console.log(JSON.stringify({status:result.status,submitted:false,contentId:post.contentId,imageCount:post.images.length,topics:result.topics,tagsVerified:result.tagsVerified,receipt,screenshot},null,2));
     if (!values.close) {
       console.error('Preview is ready. Review it in the browser; close the Redlet browser to finish. No submission was performed.');
       await context.waitForEvent('close',{timeout:0});
@@ -105,18 +105,18 @@ async function main(): Promise<number> {
 }
 
 function printTask(task:TaskRecord,local=false){
- console.log(JSON.stringify({...(local?{source:'local'}:{}),status:task.status,submitted:task.submitted,contentId:task.contentId,noteId:task.noteId,publicUrl:task.publicUrl,attemptedAt:task.attemptedAt,submittedAt:task.submittedAt,verifiedAt:task.verifiedAt,lastCheckedAt:task.lastCheckedAt,lastConfirmed:task.lastConfirmed,reason:task.reason},null,2));
+ console.log(JSON.stringify({...(local?{source:'local'}:{}),status:task.status,submitted:task.submitted,contentId:task.contentId,...(task.topics?.length?{topics:task.topics}:{}),noteId:task.noteId,publicUrl:task.publicUrl,attemptedAt:task.attemptedAt,submittedAt:task.submittedAt,verifiedAt:task.verifiedAt,lastCheckedAt:task.lastCheckedAt,lastConfirmed:task.lastConfirmed,reason:task.reason},null,2));
 }
 async function publicationCommand(stateDir:string,task:TaskRecord,post?:Awaited<ReturnType<typeof loadPost>>):Promise<number>{
  let context:Awaited<ReturnType<typeof openCreator>>|undefined;
  try{
   context=await openCreator(task.site,stateDir);const page=await context.newPage();await page.goto(creatorUrl(task.site),{waitUntil:'domcontentloaded'});
   if(post){
-   await preparePreview(page,post,task.account);
+   const preview=await preparePreview(page,post,task.account);
    const folder=join(stateDir,'receipts');await mkdir(folder,{recursive:true});const screenshot=join(folder,`${post.contentId}-${Date.now()}-preview.png`);
    await page.locator('.publish-page-content').screenshot({path:screenshot,mask:[page.getByText(task.account,{exact:true}),page.getByRole('img',{name:'头像',exact:true})],maskColor:'#e5e7eb'});
-   task.screenshot=screenshot;await saveTask(stateDir,task);
-   const result=await submitPreview(page,post,task.account,async()=>{task.status='submitting';task.submitted=null;task.attemptedAt=new Date().toISOString();await saveTask(stateDir,task);});
+   task.screenshot=screenshot;if(preview.topics.length)task.topics=preview.topics;await saveTask(stateDir,task);
+   const result=await submitPreview(page,post,task.account,async()=>{task.status='submitting';task.submitted=null;task.attemptedAt=new Date().toISOString();await saveTask(stateDir,task);},30000,preview.topics);
    applyResult(task,result);await saveTask(stateDir,task);
   }
   const result=await verifyTarget(page,task,task.account);applyResult(task,result);await saveTask(stateDir,task);
