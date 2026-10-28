@@ -2,12 +2,28 @@ import { readFile, realpath, stat } from 'node:fs/promises';
 import { resolve, dirname, relative, isAbsolute, extname, basename } from 'node:path';
 import { createHash } from 'node:crypto';
 export interface ImageAsset { path: string; filename: string; sha256: string }
-export interface PostBundle { contentId: string; title: string; body: string; images: ImageAsset[]; site: 'rednote' | 'xiaohongshu'; aiGenerated: boolean; visibility: 'public' | 'private'; expectedAccount?: string }
-const fields = new Set(['schema_version','content_id','title','body','body_file','images','site','ai_generated','visibility','expected_account']);
+export interface PostBundle { contentId: string; title: string; body: string; tags: string[]; images: ImageAsset[]; site: 'rednote' | 'xiaohongshu'; aiGenerated: boolean; visibility: 'public' | 'private'; expectedAccount?: string }
+const fields = new Set(['schema_version','content_id','title','body','body_file','images','site','ai_generated','visibility','expected_account','tags']);
 function fail(message: string): never { throw new Error(message); }
 function text(value: unknown, name: string): string {
   if (typeof value !== 'string' || !value.trim()) fail(`${name} must be a nonempty string`);
   return value;
+}
+function normalizeTags(raw: unknown): string[] {
+  if (raw===undefined) return [];
+  if (!Array.isArray(raw)) fail('tags must be an array of topic names');
+  const tags: string[]=[];
+  for (const value of raw) {
+    if (typeof value!=='string') fail('each tag must be a string');
+    const name=value.trim().replace(/^#/,'').trim();
+    if (!name || /[#\u0000-\u001f\u007f]/.test(name)) fail('tag must be nonempty without #, line breaks or control characters');
+    if (!tags.includes(name)) tags.push(name);
+  }
+  if (tags.length>10) fail('tags supports at most 10 distinct topic names');
+  return tags;
+}
+export function postCharacters(post: Pick<PostBundle,'body'|'tags'>): number {
+  return Array.from(post.body+(post.tags.length?'\n'+post.tags.map(name=>'#'+name+' ').join(''):'')).length;
 }
 function inside(base: string, file: string): boolean { const rel=relative(base,file); return rel!=='' && !rel.startsWith('..') && !isAbsolute(rel); }
 async function asset(base: string, value: unknown, max: number): Promise<{path:string;bytes:Buffer}> {
@@ -42,6 +58,8 @@ export async function loadPost(manifest: string): Promise<PostBundle> {
   const base=await realpath(dirname(full));
   const body=('body' in raw ? text(raw.body,'body') : utf8((await asset(base,raw.body_file,32*1024)).bytes,'body')).replace(/\r\n?/g,'\n');
   if (!body.trim() || Array.from(body).length>1000) fail('body must contain 1–1000 characters');
+  const tags=normalizeTags(raw.tags);
+  if (postCharacters({body,tags})>1000) fail('body including tags exceeds 1000 characters');
   if (!Array.isArray(raw.images) || raw.images.length<1 || raw.images.length>18) fail('images must contain 1–18 local images');
   if (raw.site!=='rednote' && raw.site!=='xiaohongshu') fail('site must be rednote or xiaohongshu');
   if (typeof raw.ai_generated!=='boolean') fail('ai_generated must be boolean');
@@ -59,5 +77,5 @@ export async function loadPost(manifest: string): Promise<PostBundle> {
     if (!png && !jpg && !webp) fail(`unsupported image format: ${basename(path)}`);
     images.push({path,filename:basename(path),sha256:createHash('sha256').update(bytes).digest('hex')});
   }
-  return {contentId,title,body,images,site:raw.site,aiGenerated:raw.ai_generated,visibility:raw.visibility,expectedAccount};
+  return {contentId,title,body,tags,images,site:raw.site,aiGenerated:raw.ai_generated,visibility:raw.visibility,expectedAccount};
 }

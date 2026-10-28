@@ -2,7 +2,7 @@
 import { parseArgs } from 'node:util';
 import { resolve, join } from 'node:path';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { loadPost } from './post.js';
+import { loadPost, postCharacters } from './post.js';
 import { preparePreview, readAccount } from './creator.js';
 import {submitPreview,verifyTarget} from './publish.js';
 import {beginTask,readTask,saveTask,lockTask,applyResult,type TaskRecord} from './journal.js';
@@ -71,7 +71,7 @@ async function main(): Promise<number> {
   if (!manifest) throw new Error('A post.json manifest is required');
   const post=await loadPost(manifest);
   if (command==='check') {
-    console.log(JSON.stringify({status:'bundle_valid',contentId:post.contentId,title:post.title,bodyCharacters:Array.from(post.body).length,imageCount:post.images.length,site:post.site,aiGenerated:post.aiGenerated,visibility:post.visibility},null,2));return 0;
+    console.log(JSON.stringify({status:'bundle_valid',contentId:post.contentId,title:post.title,bodyCharacters:Array.from(post.body).length,tags:post.tags,totalCharacters:postCharacters(post),imageCount:post.images.length,site:post.site,aiGenerated:post.aiGenerated,visibility:post.visibility},null,2));return 0;
   }
   if(command==='publish'&&values.confirm!==post.contentId)throw new Error('Publish requires --confirm matching the exact content_id');
   const expected=(values.account??post.expectedAccount??await boundAccount(post.site,stateDir))?.trim();

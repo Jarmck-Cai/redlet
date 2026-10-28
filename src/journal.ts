@@ -18,7 +18,7 @@ function location(stateDir:string,site:PostBundle['site'],id:string){
  if(!['rednote','xiaohongshu'].includes(site)||!id.trim())throw new Error('Invalid task identity');
  const folder=join(stateDir,'tasks',site);return {folder,file:join(folder,createHash('sha256').update(id).digest('hex')+'.json')};
 }
-function fingerprint(post:PostBundle){return createHash('sha256').update(JSON.stringify({title:post.title,body:post.body,images:post.images.map(i=>i.sha256),ai:post.aiGenerated,visibility:post.visibility,site:post.site})).digest('hex');}
+function fingerprint(post:PostBundle){return createHash('sha256').update(JSON.stringify({title:post.title,body:post.body,images:post.images.map(i=>i.sha256),ai:post.aiGenerated,visibility:post.visibility,site:post.site,...(post.tags.length?{tags:post.tags}:{})})).digest('hex');}
 async function durable(file:string,text:string,exclusive=false){const f=await open(file,exclusive?'wx':'w',0o600);try{await f.writeFile(text,'utf-8');await f.sync();}finally{await f.close();}}
 export async function lockTask(stateDir:string,site:PostBundle['site'],id:string,existingOnly=false):Promise<()=>Promise<void>>{
  const {folder,file}=location(stateDir,site,id);if(existingOnly)await access(file);await mkdir(folder,{recursive:true});const lock=file+'.lock';
